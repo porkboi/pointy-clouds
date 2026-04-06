@@ -205,6 +205,10 @@ code {
   margin-bottom: 14px;
 }
 
+.is-hidden {
+  display: none !important;
+}
+
 button {
   appearance: none;
   border: 0;

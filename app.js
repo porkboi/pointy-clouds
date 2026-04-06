@@ -22,6 +22,7 @@ const ui = {
   playPause: document.getElementById("playPause"),
   stepButton: document.getElementById("stepButton"),
   resetButton: document.getElementById("resetButton"),
+  hubCountGroup: document.getElementById("hubCountGroup"),
   hubCount: document.getElementById("hubCount"),
   hubCountValue: document.getElementById("hubCountValue"),
   rho: document.getElementById("rho"),
@@ -39,7 +40,7 @@ const modeCopy = {
   explorer:
     'The browser runs a 2D, deterministic ADMM-style solver over hub locations <code>x, z₁, z₂, z₃, u₁, u₂, u₃</code>. Each frame updates point assignments, shortest-path regularisation, quadratic shrinkage, and graph total variation on a local kNN graph.',
   tuning:
-    "This tab runs fixed-hub ADMM sweeps inside an outer tuning loop. It starts from a larger KMeans hub set, prunes edges with a loss score derived from the current shortest-path geometry, then proposes new hubs by splitting the highest-energy cluster until the hub budget is exhausted or no positive gain remains.",
+    "This tab runs fixed-hub ADMM sweeps inside an outer tuning loop. It starts from 3 KMeans hubs, prunes the most removable edge under the current objective, then splits the highest-energy Voronoi cell and keeps the new hub only when that split lowers the loss. The first loss increase is treated as convergence.",
 };
 
 function mulberry32(seed) {
@@ -286,6 +287,10 @@ function buildCompleteGraph(points) {
     }
   }
   return graphFromEdges(points, edges);
+}
+
+function buildMaxGraph(points) {
+  return buildCompleteGraph(points);
 }
 
 function dijkstra(adjacency, start) {
@@ -613,14 +618,11 @@ function createExplorerState() {
 
 function createTuningState() {
   const cloud = seededPointCloud();
-  const hubBudget = Number(ui.hubCount.value);
-  const startK = Math.min(hubBudget, Math.max(6, Math.min(8, hubBudget)));
+  const startK = 3;
   const clustering = kMeans(cloud, startK, 16, 111);
-  const graph = buildCompleteGraph(clustering.centers);
+  const graph = buildMaxGraph(clustering.centers);
   const state = createBaseState("tuning", cloud, clustering.centers, graph.edges);
-  state.hubBudget = hubBudget;
   state.outerIteration = 0;
-  state.stagnation = 0;
   state.lastAction = `Start with ${startK} hubs from KMeans`;
   return state;
 }
@@ -769,10 +771,6 @@ function pickBestEdgeRemoval(state) {
 }
 
 function buildSplitProposal(state) {
-  if (state.x.length >= state.hubBudget) {
-    return null;
-  }
-
   const currentEval = evaluateObjective(state.x, state.edges, state.cloud, state);
   const clusterEnergies = computeClusterEnergies(currentEval.assignments, state.x);
   let clusterIndex = -1;
@@ -797,17 +795,31 @@ function buildSplitProposal(state) {
     return null;
   }
 
-  const proposalHubs = state.x.filter((_, index) => index !== clusterIndex);
-  proposalHubs.push(split.centers[0], split.centers[1]);
-  const simulation = simulateFixedHubRefinement(state, proposalHubs, buildCompleteGraph(proposalHubs).edges, 4);
-  const delta = currentEval.objective - simulation.metrics.objective;
+  let best = null;
+  for (const candidate of split.centers) {
+    const proposalHubs = clonePoints(state.x);
+    proposalHubs.push(candidate);
+    const candidateIndex = proposalHubs.length - 1;
 
-  return {
-    delta,
-    clusterIndex,
-    clusterEnergy: bestEnergy,
-    simulation,
-  };
+    for (let anchorIndex = 0; anchorIndex < state.x.length; anchorIndex += 1) {
+      const proposalEdges = canonicalizeEdges(state.edges.concat([[anchorIndex, candidateIndex]]));
+      const simulation = simulateFixedHubRefinement(state, proposalHubs, proposalEdges, 4);
+      const delta = currentEval.objective - simulation.metrics.objective;
+
+      if (!best || delta > best.delta) {
+        best = {
+          delta,
+          clusterIndex,
+          clusterEnergy: bestEnergy,
+          candidate,
+          anchorIndex,
+          simulation,
+        };
+      }
+    }
+  }
+
+  return best;
 }
 
 function adoptSimulationState(target, simulation, lastAction) {
@@ -832,7 +844,7 @@ function stepTuning() {
   let changed = false;
 
   const bestRemoval = pickBestEdgeRemoval(tuningState);
-  if (bestRemoval && bestRemoval.delta > 0.015) {
+  if (bestRemoval && bestRemoval.delta > 0) {
     tuningState.edges = tuningState.edges.filter(
       ([a, b]) => edgeKey(a, b) !== edgeKey(bestRemoval.edge[0], bestRemoval.edge[1]),
     );
@@ -844,27 +856,20 @@ function stepTuning() {
   }
 
   const splitProposal = buildSplitProposal(tuningState);
-  if (splitProposal && splitProposal.delta > 0.02) {
+  if (splitProposal && splitProposal.delta > 0) {
     adoptSimulationState(
       tuningState,
       splitProposal.simulation,
-      `Added hub via cluster split ${splitProposal.clusterIndex} (ΔF=${splitProposal.delta.toFixed(3)})`,
+      `Added hub from Voronoi split ${splitProposal.clusterIndex} via ${splitProposal.anchorIndex} (ΔF=${splitProposal.delta.toFixed(3)})`,
     );
     changed = true;
     for (let i = 0; i < 2; i += 1) {
       runAdmmIteration(tuningState, "fixed", true);
     }
-  }
-
-  if (!changed) {
-    tuningState.stagnation += 1;
-    tuningState.lastAction = `No positive edge or hub move at outer step ${tuningState.outerIteration}`;
   } else {
-    tuningState.stagnation = 0;
-  }
-
-  if (tuningState.stagnation >= 5 || (tuningState.x.length >= tuningState.hubBudget && !changed)) {
+    tuningState.lastAction = `Proposed hub increased loss at outer step ${tuningState.outerIteration}; converged`;
     tuningState.playing = false;
+    return;
   }
 }
 
@@ -1051,6 +1056,7 @@ function updateUi() {
   ui.modeSummary.innerHTML = modeCopy[activeMode];
   ui.explorerTab.classList.toggle("is-active", activeMode === "explorer");
   ui.tuningTab.classList.toggle("is-active", activeMode === "tuning");
+  ui.hubCountGroup.classList.toggle("is-hidden", activeMode === "tuning");
 
   if (state.mode === "tuning") {
     ui.weightLabel.textContent = "Hub / edge count";
