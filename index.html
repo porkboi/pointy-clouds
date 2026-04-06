@@ -49,7 +49,21 @@
               <span class="badge"><span class="swatch route"></span>High-weight paths</span>
             </div>
           </div>
-          <canvas id="scene" width="960" height="660" aria-label="ADMM point cloud visualisation"></canvas>
+          <div class="scene-shell">
+            <canvas id="scene" width="960" height="660" aria-label="ADMM point cloud visualisation"></canvas>
+            <div class="map-controls map-controls-pan" aria-label="Map navigation controls">
+              <button id="panUp" class="map-button ghost" type="button" aria-label="Pan up">↑</button>
+              <div class="map-controls-row">
+                <button id="panLeft" class="map-button ghost" type="button" aria-label="Pan left">←</button>
+                <button id="panDown" class="map-button ghost" type="button" aria-label="Pan down">↓</button>
+                <button id="panRight" class="map-button ghost" type="button" aria-label="Pan right">→</button>
+              </div>
+            </div>
+            <div class="map-controls map-controls-zoom" aria-label="Map zoom controls">
+              <button id="zoomIn" class="map-button" type="button" aria-label="Zoom in">+</button>
+              <button id="zoomOut" class="map-button ghost" type="button" aria-label="Zoom out">−</button>
+            </div>
+          </div>
         </section>
 
         <section class="sidebar">

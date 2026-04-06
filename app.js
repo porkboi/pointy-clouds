@@ -34,13 +34,19 @@ const ui = {
   explorerTab: document.getElementById("explorerTab"),
   tuningTab: document.getElementById("tuningTab"),
   modeSummary: document.getElementById("modeSummary"),
+  zoomIn: document.getElementById("zoomIn"),
+  zoomOut: document.getElementById("zoomOut"),
+  panUp: document.getElementById("panUp"),
+  panDown: document.getElementById("panDown"),
+  panLeft: document.getElementById("panLeft"),
+  panRight: document.getElementById("panRight"),
 };
 
 const modeCopy = {
   explorer:
     'The browser runs a 2D, deterministic ADMM-style solver over hub locations <code>x, z₁, z₂, z₃, u₁, u₂, u₃</code>. Each frame updates point assignments, shortest-path regularisation, quadratic shrinkage, and graph total variation on a local kNN graph.',
   tuning:
-    "This tab runs fixed-hub ADMM sweeps inside an outer tuning loop. It starts from 3 KMeans hubs, prunes the most removable edge under the current objective, then splits the highest-energy Voronoi cell and keeps the new hub only when that split lowers the loss. The first loss increase is treated as convergence.",
+    "This tab reuses the explorer's local kNN-graph ADMM solver at each fixed hub count. It starts from 3 KMeans hubs, settles the current geometry with the same ADMM updates as the explorer, then splits the highest-energy Voronoi cell and keeps the new hub only when that locally converged split lowers the loss.",
 };
 
 function mulberry32(seed) {
@@ -552,6 +558,23 @@ function residualSum(a, b) {
   return total;
 }
 
+function computeMotionStats(current, previous) {
+  let total = 0;
+  let max = 0;
+  for (let i = 0; i < current.length; i += 1) {
+    const motion = dist(current[i], previous[i]);
+    total += motion;
+    if (motion > max) {
+      max = motion;
+    }
+  }
+  return {
+    total,
+    avg: current.length ? total / current.length : 0,
+    max,
+  };
+}
+
 function evaluateObjective(hubs, edges, cloud, params) {
   const assigned = assignPoints(hubs, cloud);
   const graph = graphFromEdges(hubs, edges);
@@ -684,90 +707,38 @@ function runAdmmIteration(state, graphMode = "knn", pushHistory = true) {
   return { metrics, primal, dual };
 }
 
-function simulateFixedHubRefinement(baseState, x, edges, iterations = 4) {
+function runFixedKConvergence(state, options = {}) {
+  const {
+    maxIterations = 48,
+    minIterations = 6,
+    avgTolerance = 0.003,
+    maxTolerance = 0.0075,
+    pushHistory = true,
+    graphMode = "knn",
+  } = options;
+
+  let latest = null;
+  let motion = { total: Infinity, avg: Infinity, max: Infinity };
+
+  for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+    const previousX = clonePoints(state.x);
+    latest = runAdmmIteration(state, graphMode, pushHistory);
+    motion = computeMotionStats(state.x, previousX);
+    if (iteration + 1 >= minIterations && motion.avg <= avgTolerance && motion.max <= maxTolerance) {
+      return { ...latest, motion, settled: true, iterations: iteration + 1 };
+    }
+  }
+
+  return { ...latest, motion, settled: false, iterations: maxIterations };
+}
+
+function simulateFixedHubRefinement(baseState, x, edges) {
   const state = createBaseState("simulation", baseState.cloud, x, edges);
   state.lambda = baseState.lambda;
   state.mu = baseState.mu;
   state.rho = baseState.rho;
-  for (let i = 0; i < iterations; i += 1) {
-    runAdmmIteration(state, "fixed", false);
-  }
-  const metrics = evaluateObjective(state.x, state.edges, state.cloud, state);
-  return { state, metrics };
-}
-
-function computeTensorCurvatureScore(hubs, edges, edge) {
-  const [i, j] = edge;
-  let total = squaredDist(hubs[i], hubs[j]);
-  for (const [a, b] of edges) {
-    if (a === i && b !== j) {
-      const delta = add(sub(hubs[i], scale(hubs[j], 2)), hubs[b]);
-      total += delta.x * delta.x + delta.y * delta.y;
-    } else if (b === i && a !== j) {
-      const delta = add(sub(hubs[a], scale(hubs[j], 2)), hubs[i]);
-      total += delta.x * delta.x + delta.y * delta.y;
-    }
-    if (a === j && b !== i) {
-      const delta = add(sub(hubs[j], scale(hubs[i], 2)), hubs[b]);
-      total += delta.x * delta.x + delta.y * delta.y;
-    } else if (b === j && a !== i) {
-      const delta = add(sub(hubs[a], scale(hubs[i], 2)), hubs[j]);
-      total += delta.x * delta.x + delta.y * delta.y;
-    }
-  }
-  return total;
-}
-
-function computeEdgeRemovalDelta(hubs, edges, weights, edge) {
-  const currentGraph = graphFromEdges(hubs, edges);
-  const reducedEdges = edges.filter(([a, b]) => edgeKey(a, b) !== edgeKey(edge[0], edge[1]));
-  if (!isGraphConnected(hubs, reducedEdges)) {
-    return -Infinity;
-  }
-
-  const altGraph = graphFromEdges(hubs, reducedEdges);
-  const totalMass = Math.max(weights.reduce((sum, value) => sum + value, 0), 1);
-  const removedEdgeLen2 = squaredDist(hubs[edge[0]], hubs[edge[1]]);
-  let transportDelta = 0;
-
-  for (let k = 0; k < hubs.length; k += 1) {
-    const currentResult = dijkstra(currentGraph.adjacency, k);
-    const altResult = dijkstra(altGraph.adjacency, k);
-    for (let l = k + 1; l < hubs.length; l += 1) {
-      if (!Number.isFinite(currentResult.dist[l]) || !Number.isFinite(altResult.dist[l])) {
-        continue;
-      }
-      const currentPath = reconstructPath(currentResult.prev, k, l);
-      if (!pathContainsEdge(currentPath, edge[0], edge[1])) {
-        continue;
-      }
-      const altPath = reconstructPath(altResult.prev, k, l);
-      if (altPath.length === 0) {
-        continue;
-      }
-      const coeff = 0.5 * (weights[k] * weights[l]) / (totalMass * totalMass);
-      transportDelta += coeff * (removedEdgeLen2 - pathSquaredLength(hubs, altPath));
-    }
-  }
-
-  return transportDelta + computeTensorCurvatureScore(hubs, edges, edge);
-}
-
-function pickBestEdgeRemoval(state) {
-  if (state.edges.length <= Math.max(state.x.length - 1, 1)) {
-    return null;
-  }
-  let best = null;
-  for (const edge of state.edges) {
-    const delta = computeEdgeRemovalDelta(state.x, state.edges, state.weights, edge);
-    if (!Number.isFinite(delta)) {
-      continue;
-    }
-    if (!best || delta > best.delta) {
-      best = { edge, delta };
-    }
-  }
-  return best;
+  const convergence = runFixedKConvergence(state, { pushHistory: false, graphMode: "knn" });
+  return { state, metrics: convergence.metrics, convergence };
 }
 
 function buildSplitProposal(state) {
@@ -803,7 +774,7 @@ function buildSplitProposal(state) {
 
     for (let anchorIndex = 0; anchorIndex < state.x.length; anchorIndex += 1) {
       const proposalEdges = canonicalizeEdges(state.edges.concat([[anchorIndex, candidateIndex]]));
-      const simulation = simulateFixedHubRefinement(state, proposalHubs, proposalEdges, 4);
+      const simulation = simulateFixedHubRefinement(state, proposalHubs, proposalEdges);
       const delta = currentEval.objective - simulation.metrics.objective;
 
       if (!best || delta > best.delta) {
@@ -836,24 +807,9 @@ function stepExplorer() {
 
 function stepTuning() {
   syncStateParams(tuningState);
-  for (let i = 0; i < 4; i += 1) {
-    runAdmmIteration(tuningState, "fixed", true);
-  }
+  let convergence = runFixedKConvergence(tuningState, { graphMode: "knn" });
 
   tuningState.outerIteration += 1;
-  let changed = false;
-
-  const bestRemoval = pickBestEdgeRemoval(tuningState);
-  if (bestRemoval && bestRemoval.delta > 0) {
-    tuningState.edges = tuningState.edges.filter(
-      ([a, b]) => edgeKey(a, b) !== edgeKey(bestRemoval.edge[0], bestRemoval.edge[1]),
-    );
-    tuningState.lastAction = `Removed edge ${bestRemoval.edge[0]}-${bestRemoval.edge[1]} (ΔF=${bestRemoval.delta.toFixed(3)})`;
-    changed = true;
-    for (let i = 0; i < 2; i += 1) {
-      runAdmmIteration(tuningState, "fixed", true);
-    }
-  }
 
   const splitProposal = buildSplitProposal(tuningState);
   if (splitProposal && splitProposal.delta > 0) {
@@ -862,25 +818,37 @@ function stepTuning() {
       splitProposal.simulation,
       `Added hub from Voronoi split ${splitProposal.clusterIndex} via ${splitProposal.anchorIndex} (ΔF=${splitProposal.delta.toFixed(3)})`,
     );
-    changed = true;
-    for (let i = 0; i < 2; i += 1) {
-      runAdmmIteration(tuningState, "fixed", true);
-    }
+    convergence = runFixedKConvergence(tuningState, { graphMode: "knn" });
+    tuningState.lastAction = `${tuningState.lastAction}; settled in ${convergence.iterations} ADMM sweeps`;
   } else {
-    tuningState.lastAction = `Proposed hub increased loss at outer step ${tuningState.outerIteration}; converged`;
+    const settleLabel = convergence.settled ? "settled" : "hit the ADMM sweep cap";
+    tuningState.lastAction = `No improving hub split after ${settleLabel} at outer step ${tuningState.outerIteration}; converged`;
     tuningState.playing = false;
-    return;
   }
 }
 
-function projectPoint(point, bounds, size) {
+const camera = {
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0,
+};
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function projectPoint(point, bounds, size, view = camera) {
   const pad = 46;
   const sx = (size.width - pad * 2) / (bounds.maxX - bounds.minX);
   const sy = (size.height - pad * 2) / (bounds.maxY - bounds.minY);
   const scaleValue = Math.min(sx, sy);
+  const baseX = pad + (point.x - bounds.minX) * scaleValue;
+  const baseY = size.height - pad - (point.y - bounds.minY) * scaleValue;
+  const centerX = size.width * 0.5;
+  const centerY = size.height * 0.5;
   return {
-    x: pad + (point.x - bounds.minX) * scaleValue,
-    y: size.height - pad - (point.y - bounds.minY) * scaleValue,
+    x: centerX + (baseX - centerX) * view.zoom + view.offsetX,
+    y: centerY + (baseY - centerY) * view.zoom + view.offsetY,
   };
 }
 
@@ -896,6 +864,10 @@ function computeBounds(cloud, hubs) {
   };
 }
 
+function scaleVisualSize(base, zoom, min, max, exponent = 0.55) {
+  return clamp(base * zoom ** exponent, min, max);
+}
+
 function drawScene(state) {
   const { width, height } = sceneCanvas;
   sceneCtx.clearRect(0, 0, width, height);
@@ -907,7 +879,7 @@ function drawScene(state) {
   sceneCtx.fillRect(0, 0, width, height);
 
   sceneCtx.strokeStyle = "rgba(20, 16, 13, 0.08)";
-  sceneCtx.lineWidth = 1;
+  sceneCtx.lineWidth = scaleVisualSize(1, camera.zoom, 0.75, 2.2, 0.2);
   for (let i = 0; i < 9; i += 1) {
     const t = i / 8;
     const y = 40 + t * (height - 80);
@@ -928,13 +900,13 @@ function drawScene(state) {
     for (const point of assignments[hubIndex]) {
       const projected = projectPoint(point, bounds, { width, height });
       sceneCtx.beginPath();
-      sceneCtx.arc(projected.x, projected.y, 2.4, 0, TAU);
+      sceneCtx.arc(projected.x, projected.y, scaleVisualSize(2.4, camera.zoom, 1.5, 4.4, 0.45), 0, TAU);
       sceneCtx.fill();
     }
   }
 
   sceneCtx.strokeStyle = "rgba(35, 117, 111, 0.42)";
-  sceneCtx.lineWidth = 1.3;
+  sceneCtx.lineWidth = scaleVisualSize(1.3, camera.zoom, 1, 3.4, 0.35);
   for (const [a, b] of state.edges) {
     const pa = projectPoint(state.x[a], bounds, { width, height });
     const pb = projectPoint(state.x[b], bounds, { width, height });
@@ -946,7 +918,7 @@ function drawScene(state) {
 
   if (state.highlightedPath.length > 1) {
     sceneCtx.strokeStyle = "#d77b2a";
-    sceneCtx.lineWidth = 4;
+    sceneCtx.lineWidth = scaleVisualSize(4, camera.zoom, 2.4, 7.2, 0.4);
     sceneCtx.lineJoin = "round";
     sceneCtx.beginPath();
     const start = projectPoint(state.x[state.highlightedPath[0]], bounds, { width, height });
@@ -961,14 +933,15 @@ function drawScene(state) {
   for (let i = 0; i < state.x.length; i += 1) {
     const projected = projectPoint(state.x[i], bounds, { width, height });
     const weight = state.weights[i] ?? 0;
+    const hubRadius = scaleVisualSize(6.5 + Math.min(weight / 24, 8), camera.zoom, 4.5, 19, 0.55);
     sceneCtx.fillStyle = "#10100f";
     sceneCtx.beginPath();
-    sceneCtx.arc(projected.x, projected.y, 6.5 + Math.min(weight / 24, 8), 0, TAU);
+    sceneCtx.arc(projected.x, projected.y, hubRadius, 0, TAU);
     sceneCtx.fill();
     sceneCtx.fillStyle = "#fff3e0";
-    sceneCtx.font = "12px IBM Plex Mono";
+    sceneCtx.font = `${Math.round(scaleVisualSize(12, camera.zoom, 9, 18, 0.35))}px IBM Plex Mono`;
     sceneCtx.textAlign = "center";
-    sceneCtx.fillText(String(i), projected.x, projected.y + 4);
+    sceneCtx.fillText(String(i), projected.x, projected.y + scaleVisualSize(4, camera.zoom, 3, 6, 0.3));
   }
 }
 
@@ -1111,6 +1084,17 @@ function switchMode(mode) {
   updateUi();
 }
 
+function nudgeCamera(dx = 0, dy = 0) {
+  camera.offsetX += dx;
+  camera.offsetY += dy;
+  updateUi();
+}
+
+function changeZoom(factor) {
+  camera.zoom = clamp(camera.zoom * factor, 0.65, 3.5);
+  updateUi();
+}
+
 ui.playPause.addEventListener("click", () => {
   const state = getActiveState();
   state.playing = !state.playing;
@@ -1131,6 +1115,12 @@ ui.stepButton.addEventListener("click", () => {
 ui.resetButton.addEventListener("click", () => resetState(activeMode));
 ui.explorerTab.addEventListener("click", () => switchMode("explorer"));
 ui.tuningTab.addEventListener("click", () => switchMode("tuning"));
+ui.zoomIn.addEventListener("click", () => changeZoom(1.2));
+ui.zoomOut.addEventListener("click", () => changeZoom(1 / 1.2));
+ui.panUp.addEventListener("click", () => nudgeCamera(0, -34));
+ui.panDown.addEventListener("click", () => nudgeCamera(0, 34));
+ui.panLeft.addEventListener("click", () => nudgeCamera(-34, 0));
+ui.panRight.addEventListener("click", () => nudgeCamera(34, 0));
 
 for (const slider of [ui.hubCount, ui.rho, ui.lambda, ui.mu]) {
   slider.addEventListener("input", () => {
