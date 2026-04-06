@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>21-410 · Modified HP Filter · Gradient Descent</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap');
+
+:root {
+  --bg:      #07090d;
+  --panel:   #0c0f17;
+  --border:  #161d2e;
+  --border2: #1f2a3e;
+  --accent:  #6ee7b7;
+  --hot:     #f87171;
+  --warm:    #fbbf24;
+  --cool:    #60a5fa;
+  --purple:  #a78bfa;
+  --text:    #cbd5e1;
+  --muted:   #475569;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body { background:var(--bg); color:var(--text); font-family:'IBM Plex Mono',monospace; display:flex; flex-direction:column; }
+
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 20px; border-bottom:1px solid var(--border);
+  background:var(--panel); flex-shrink:0;
+}
+.hdr-left h1 { font-family:'EB Garamond',serif; font-size:1.05rem; font-weight:600; color:var(--accent); }
+.hdr-left p  { font-size:.58rem; color:var(--muted); margin-top:1px; }
+.stats { display:flex; gap:20px; font-size:.6rem; }
+.stat  { display:flex; flex-direction:column; align-items:flex-end; gap:1px; }
+.stat .lbl { color:var(--muted); font-size:.55rem; text-transform:uppercase; letter-spacing:.1em; }
+.stat .val { color:var(--warm); font-weight:600; }
+
+.body { display:flex; flex:1; overflow:hidden; }
+
+aside {
+  width:210px; flex-shrink:0; border-right:1px solid var(--border);
+  background:var(--panel); display:flex; flex-direction:column; overflow-y:auto;
+}
+.aside-section { border-bottom:1px solid var(--border); padding:12px 14px; }
+.sec-title { font-size:.55rem; color:var(--muted); text-transform:uppercase; letter-spacing:.12em; margin-bottom:10px; }
+
+.btn {
+  display:block; width:100%; padding:7px 10px; margin-bottom:5px;
+  background:transparent; border:1px solid var(--border2);
+  color:var(--text); font-family:'IBM Plex Mono',monospace;
+  font-size:.6rem; text-transform:uppercase; letter-spacing:.07em;
+  cursor:pointer; transition:border-color .15s,color .15s,background .15s;
+}
+.btn:hover { border-color:var(--accent); color:var(--accent); }
+.btn.go   { border-color:var(--accent); color:var(--accent); background:rgba(110,231,183,.05); }
+.btn.go:hover { background:rgba(110,231,183,.12); }
+.btn.step { border-color:var(--cool); color:var(--cool); }
+.btn.stop { border-color:var(--hot); color:var(--hot); }
+.btn.regen{ border-color:var(--purple); color:var(--purple); }
+.btn.running { border-color:var(--warm); color:var(--warm); animation:blink .9s infinite; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:.45} }
+
+.sl { margin-bottom:9px; }
+.sl label { display:flex; justify-content:space-between; font-size:.57rem; color:var(--muted); margin-bottom:3px; }
+.sl label em { color:var(--warm); font-style:normal; }
+input[type=range] { width:100%; accent-color:var(--accent); cursor:pointer; }
+
+.leg { display:flex; flex-direction:column; gap:5px; }
+.leg-row { display:flex; align-items:center; gap:7px; font-size:.57rem; color:var(--muted); }
+.dot  { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.line { width:14px; height:2px; flex-shrink:0; }
+
+.canvas-wrap { flex:1; position:relative; overflow:hidden; }
+canvas#main  { position:absolute; inset:0; width:100%; height:100%; }
+
+.overlay {
+  position:absolute; background:rgba(12,15,23,.93);
+  border:1px solid var(--border2); backdrop-filter:blur(6px);
+  padding:10px 14px; font-size:.58rem;
+}
+.overlay .ov-title {
+  font-size:.55rem; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.1em; margin-bottom:6px; padding-bottom:4px;
+  border-bottom:1px solid var(--border);
+}
+.ov-formula { line-height:1.8; }
+.ov-formula .c1 { color:var(--accent); }
+.ov-formula .c2 { color:var(--warm); }
+.ov-formula .c3 { color:var(--cool); }
+.ov-formula .c4 { color:var(--hot); }
+
+#math-ov { top:12px; right:12px; width:280px; }
+#loss-ov  { bottom:12px; right:12px; width:270px; }
+#lossCanvas { display:block; width:100%; height:72px; margin-top:4px; }
+#info-ov  { bottom:12px; left:12px; width:230px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-left">
+    <h1>21-410 · Modified HP Filter · Gradient Descent</h1>
+    <p>subgradient descent on hub positions X with edge-set update every N steps</p>
+  </div>
+  <div class="stats">
+    <div class="stat"><span class="lbl">iter</span><span class="val" id="s-iter">0</span></div>
+    <div class="stat"><span class="lbl">F(X,E)</span><span class="val" id="s-loss">—</span></div>
+    <div class="stat"><span class="lbl">‖∇F‖</span><span class="val" id="s-gnorm">—</span></div>
+    <div class="stat"><span class="lbl">η</span><span class="val" id="s-eta">—</span></div>
+    <div class="stat"><span class="lbl">active |E|</span><span class="val" id="s-edges">—</span></div>
+  </div>
+</header>
+
+<div class="body">
+<aside>
+  <div class="aside-section">
+    <div class="sec-title">Controls</div>
+    <button class="btn go"   id="runBtn" onclick="toggleRun()">▶ Run</button>
+    <button class="btn step" onclick="gdStep()">→ One Step</button>
+    <button class="btn regen" onclick="init()">↺ Regenerate</button>
+    <button class="btn stop"  onclick="hardStop()">■ Stop</button>
+  </div>
+
+  <div class="aside-section">
+    <div class="sec-title">Hyperparameters</div>
+    <div class="sl"><label>λ (HP reg) <em id="v-lam">0.5</em></label>
+      <input type="range" id="p-lam" min="0" max="3" step="0.05" value="0.5" oninput="sv('v-lam',this.value)"></div>
+    <div class="sl"><label>η step size <em id="v-eta">0.025</em></label>
+      <input type="range" id="p-eta" min="0.002" max="0.12" step="0.002" value="0.025" oninput="sv('v-eta',this.value)"></div>
+    <div class="sl"><label>grad clip <em id="v-gc">50</em></label>
+      <input type="range" id="p-gc" min="5" max="200" step="5" value="50" oninput="sv('v-gc',this.value)"></div>
+    <div class="sl"><label>cost weight <em id="v-cw">1.0</em></label>
+      <input type="range" id="p-cw" min="0" max="3" step="0.05" value="1.0" oninput="sv('v-cw',this.value)"></div>
+    <div class="sl"><label>repulsion <em id="v-rep">30</em></label>
+      <input type="range" id="p-rep" min="0" max="50" step="0.5" value="30" oninput="sv('v-rep',this.value)"></div>
+    <div class="sl"><label>edge update every <em id="v-eu">10</em></label>
+      <input type="range" id="p-eu" min="1" max="50" step="1" value="10" oninput="sv('v-eu',this.value)"></div>
+    <div class="sl"><label>N hubs <em id="v-nh">7</em></label>
+      <input type="range" id="p-nh" min="3" max="14" step="1" value="7" oninput="sv('v-nh',this.value,true)"></div>
+    <div class="sl"><label>N data pts <em id="v-np">70</em></label>
+      <input type="range" id="p-np" min="20" max="180" step="5" value="70" oninput="sv('v-np',this.value,true)"></div>
+  </div>
+
+  <div class="aside-section">
+    <div class="sec-title">Legend</div>
+    <div class="leg">
+      <div class="leg-row"><div class="dot" style="background:#94a3b8;opacity:.6"></div>data yₖ</div>
+      <div class="leg-row"><div class="dot" style="background:var(--accent)"></div>hub xᵢ</div>
+      <div class="leg-row"><div class="line" style="background:var(--cool)"></div>active edge E</div>
+      <div class="leg-row"><div class="line" style="background:var(--border2);border-top:1px dashed #334155"></div>candidate edge</div>
+      <div class="leg-row"><div class="line" style="background:var(--hot);opacity:.5"></div>assign ρ(k)=i</div>
+      <div class="leg-row"><div class="dot" style="background:var(--warm)"></div>gradient −∇F arrow</div>
+    </div>
+  </div>
+</aside>
+
+<div class="canvas-wrap">
+  <canvas id="main"></canvas>
+
+  <div class="overlay" id="math-ov">
+    <div class="ov-title">Objective &amp; Gradient</div>
+    <div class="ov-formula">
+      F = <span class="c1">Σ TD(i)</span>
+        + <span class="c2">¼Σ w(i)w(j)L(i,j)</span><br>
+      &nbsp;&nbsp;&nbsp;+ <span class="c3">λ‖D_EX‖₂²</span>
+        + <span class="c4">cw·Σ‖xᵢ−xⱼ‖</span>
+    </div>
+    <div style="margin-top:8px;" class="ov-title">∂F/∂xₖ</div>
+    <div class="ov-formula">
+      <span class="c1">Fidelity:</span> −Σ (yₖ−xₖ)/‖yₖ−xₖ‖<br>
+      <span class="c2">Complexity:</span> 2Σ (xₖ−xₗ)/‖xₖ−xₗ‖<br>
+      <span class="c3">HP Reg:</span> 2λ(D_EX)ᵀD_E[:,k]<br>
+      <span class="c4">Cost:</span> 2·cw·Σ_{(k,j)∈E}(xₖ−xⱼ)/‖xₖ−xⱼ‖<br>
+      <span style="color:var(--hot)">Repulsion:</span> −α/‖xₖ−xₗ‖³·(xₗ−xₖ)
+    </div>
+    <div style="margin-top:8px;" class="ov-title">Update Rule</div>
+    <div class="ov-formula">
+      <span style="color:var(--accent)">xₖ ← xₖ − η · clip(∇F, c)</span><br>
+      <span style="color:var(--muted)">E updated every T steps (greedy)</span>
+    </div>
+  </div>
+
+  <div class="overlay" id="loss-ov">
+    <div class="ov-title">F(X,E) — loss over iterations</div>
+    <canvas id="lossCanvas"></canvas>
+  </div>
+
+  <div class="overlay" id="info-ov">
+    <div class="ov-title">Diagnostics</div>
+    <div id="diag-body" class="ov-formula" style="line-height:1.9">
+      step: —<br>active |E|: —<br>‖∇F‖: —<br>next edge update: —
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+let C, ctx, LC, lctx, W, H;
+let dataY=[], hubs=[], allEdges=[], activeEdges=[], assignments=[];
+let lossHist=[], iter=0, running=false, animId=null;
+
+const pv = id => parseFloat(document.getElementById(id).value);
+function sv(lbl, val, regen=false) {
+  document.getElementById(lbl).innerText = parseFloat(val).toFixed(val%1===0?0:3);
+  if (regen) init();
+}
+
+// ── utils ──
+const d2=(a,b)=>Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);
+
+function init() {
+  hardStop();
+  W=C.width=C.offsetWidth; H=C.height=C.offsetHeight;
+  const nH=parseInt(document.getElementById('p-nh').value);
+  const nP=parseInt(document.getElementById('p-np').value);
+  const mg=70;
+  const centers=Array.from({length:nH},()=>({x:mg+Math.random()*(W-2*mg),y:mg+Math.random()*(H-2*mg)}));
+  dataY=Array.from({length:nP},()=>{const c=centers[Math.floor(Math.random()*nH)];return{x:c.x+(Math.random()-.5)*90,y:c.y+(Math.random()-.5)*90};});
+  hubs=centers.map(c=>({x:c.x+(Math.random()-.5)*110,y:c.y+(Math.random()-.5)*110}));
+  allEdges=buildCandidateEdges(hubs);
+  activeEdges=buildSpanningTree(hubs);
+  lossHist=[]; iter=0;
+  updateAssignments();
+  refreshStats(); draw();
+}
+
+function buildCandidateEdges(pts) {
+  const n=pts.length, thresh=Math.max(W,H)*.45, edges=[];
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++) if(d2(pts[i],pts[j])<thresh) edges.push({i,j});
+  buildSpanningTree(pts).forEach(e=>{ if(!edges.find(f=>f.i===e.i&&f.j===e.j)) edges.push(e); });
+  return edges;
+}
+
+function buildSpanningTree(pts) {
+  const n=pts.length; if(!n) return [];
+  const inTree=new Set([0]), edges=[];
+  while(inTree.size<n){
+    let best=null,bd=Infinity;
+    inTree.forEach(i=>{for(let j=0;j<n;j++){if(!inTree.has(j)){const dd=d2(pts[i],pts[j]);if(dd<bd){bd=dd;best={i,j};}}}});
+    if(!best) break; inTree.add(best.j); edges.push(best);
+  }
+  for(let t=0;t<Math.floor(n/2);t++){
+    const a=Math.floor(Math.random()*n),b=Math.floor(Math.random()*n);
+    if(a!==b&&!edges.find(e=>(e.i===a&&e.j===b)||(e.i===b&&e.j===a))) edges.push({i:a,j:b});
+  }
+  return edges;
+}
+
+function updateAssignments() {
+  assignments=dataY.map(y=>{let best=0,bd=Infinity;hubs.forEach((h,i)=>{const dd=d2(y,h);if(dd<bd){bd=dd;best=i;}});return best;});
+}
+
+function bfsPath(src,dst) {
+  const n=hubs.length,adj=Array.from({length:n},()=>[]);
+  activeEdges.forEach(({i,j})=>{adj[i].push(j);adj[j].push(i);});
+  const prev=new Array(n).fill(-1),vis=new Array(n).fill(false),q=[src];
+  vis[src]=true;
+  while(q.length){const cur=q.shift();if(cur===dst)break;adj[cur].forEach(nb=>{if(!vis[nb]){vis[nb]=true;prev[nb]=cur;q.push(nb);}});}
+  const path=[]; let cur=dst;
+  while(cur!==-1){path.unshift(cur);cur=prev[cur];}
+  return path[0]===src?path:[];
+}
+
+// ── gradient ──
+function computeGradients() {
+  const lambda=pv('p-lam'), cw=pv('p-cw'), repW=pv('p-rep');
+  const grads=hubs.map(()=>({x:0,y:0}));
+  const wi=hubs.map((_,i)=>assignments.filter(a=>a===i).length);
+  const N2=Math.max(1,dataY.length*dataY.length);
+
+  // 1. Fidelity
+  hubs.forEach((h,k)=>{
+    dataY.forEach((y,idx)=>{
+      if(assignments[idx]!==k) return;
+      const d=d2(y,h); if(d<1e-9) return;
+      grads[k].x+=-(y.x-h.x)/d; grads[k].y+=-(y.y-h.y)/d;
+    });
+  });
+
+  // 2. Repulsion
+  hubs.forEach((ha,a)=>{
+    hubs.forEach((hb,b)=>{
+      if(a>=b) return;
+      const d=d2(ha,hb), ms=50;
+      if(d<1e-9){grads[a].x-=repW*5*(Math.random()-.5);grads[a].y-=repW*5*(Math.random()-.5);grads[b].x+=repW*5*(Math.random()-.5);grads[b].y+=repW*5*(Math.random()-.5);return;}
+      if(d<3*ms){const f=repW*(ms*ms)/(d*d*d);grads[a].x-=f*(hb.x-ha.x);grads[a].y-=f*(hb.y-ha.y);grads[b].x+=f*(hb.x-ha.x);grads[b].y+=f*(hb.y-ha.y);}
+    });
+  });
+
+  // 3. Complexity
+  const n=hubs.length;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    const path=bfsPath(i,j); if(path.length<2) continue;
+    const w=0.25*wi[i]*wi[j]/N2;
+    path.forEach(k=>{
+      const idx=path.indexOf(k);
+      const nbs=[];
+      if(idx>0) nbs.push(path[idx-1]);
+      if(idx<path.length-1) nbs.push(path[idx+1]);
+      nbs.forEach(l=>{const d=d2(hubs[k],hubs[l]);if(d>1e-9){grads[k].x+=w*2*(hubs[k].x-hubs[l].x)/d;grads[k].y+=w*2*(hubs[k].y-hubs[l].y)/d;}});
+    });
+  }
+
+  // 4. HP regulariser
+  const nH=Math.max(1,hubs.length);
+  activeEdges.forEach(({i,j})=>{
+    const dx=hubs[i].x-hubs[j].x,dy=hubs[i].y-hubs[j].y;
+    grads[i].x+=(2*lambda/nH)*dx; grads[i].y+=(2*lambda/nH)*dy;
+    grads[j].x-=(2*lambda/nH)*dx; grads[j].y-=(2*lambda/nH)*dy;
+  });
+
+  // 5. Cost
+  const nE=Math.max(1,activeEdges.length);
+  activeEdges.forEach(({i,j})=>{
+    const d=d2(hubs[i],hubs[j]); if(d<1e-9) return;
+    const nx=(hubs[i].x-hubs[j].x)/d,ny=(hubs[i].y-hubs[j].y)/d;
+    grads[i].x+=(cw*2/nE)*nx; grads[i].y+=(cw*2/nE)*ny;
+    grads[j].x-=(cw*2/nE)*nx; grads[j].y-=(cw*2/nE)*ny;
+  });
+
+  return grads;
+}
+
+function computeLoss() {
+  const lambda=pv('p-lam'),cw=pv('p-cw');
+  let F=0;
+  const wi=hubs.map((_,i)=>assignments.filter(a=>a===i).length);
+  hubs.forEach((h,k)=>dataY.forEach((y,idx)=>{if(assignments[idx]===k)F+=d2(y,h);}));
+  const n=hubs.length;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    const path=bfsPath(i,j); if(path.length<2) continue;
+    let L=0; for(let t=0;t<path.length-1;t++) L+=d2(hubs[path[t]],hubs[path[t+1]]);
+    F+=0.25*wi[i]*wi[j]*L;
+  }
+  activeEdges.forEach(({i,j})=>{const dx=hubs[i].x-hubs[j].x,dy=hubs[i].y-hubs[j].y;F+=lambda*(dx*dx+dy*dy);});
+  activeEdges.forEach(({i,j})=>{F+=cw*d2(hubs[i],hubs[j]);});
+  return F;
+}
+
+// ── edge update (greedy, connectivity-safe) ──
+function isConnectedWithout(skipIdx,n) {
+  const adj=Array.from({length:n},()=>[]);
+  activeEdges.forEach(({i,j},idx)=>{if(idx!==skipIdx){adj[i].push(j);adj[j].push(i);}});
+  const vis=new Array(n).fill(false); const q=[0]; vis[0]=true; let cnt=1;
+  while(q.length){const cur=q.shift();adj[cur].forEach(nb=>{if(!vis[nb]){vis[nb]=true;cnt++;q.push(nb);}});}
+  return cnt===n;
+}
+
+function edgeScore(i,j) {
+  const lambda=pv('p-lam'),cw=pv('p-cw');
+  const nE=Math.max(1,activeEdges.length),nH=Math.max(1,hubs.length),N2=Math.max(1,dataY.length**2);
+  const wi=assignments.filter(a=>a===i).length,wj=assignments.filter(a=>a===j).length;
+  const dist=d2(hubs[i],hubs[j]);
+  return (lambda/nH)*dist*dist + (cw/nE)*dist + 0.25*wi*wj*dist/N2;
+}
+
+function updateEdges() {
+  const n=hubs.length, maxRm=Math.max(1,Math.floor(activeEdges.length*.25));
+  for(let attempt=0;attempt<maxRm;attempt++){
+    if(activeEdges.length<=n-1) break;
+    const scored=activeEdges.map(({i,j},idx)=>({idx,i,j,score:edgeScore(i,j)})).sort((a,b)=>b.score-a.score);
+    let removed=false;
+    for(const c of scored){
+      if(isConnectedWithout(c.idx,n)){activeEdges.splice(c.idx,1);removed=true;break;}
+    }
+    if(!removed) break;
+  }
+  // Safety: ensure MST connectivity
+  buildSpanningTree(hubs).forEach(me=>{
+    if(!activeEdges.find(e=>(e.i===me.i&&e.j===me.j)||(e.i===me.j&&e.j===me.i))) activeEdges.push(me);
+  });
+}
+
+// ── one gradient descent step ──
+function gdStep() {
+  const eta=pv('p-eta'), clip=pv('p-gc');
+  const grads=computeGradients();
+  let gnorm=0; grads.forEach(g=>{gnorm+=g.x*g.x+g.y*g.y;}); gnorm=Math.sqrt(gnorm);
+  const scale=gnorm>clip?clip/gnorm:1;
+  hubs.forEach((h,k)=>{
+    h.x=Math.max(15,Math.min(W-15, h.x-eta*grads[k].x*scale));
+    h.y=Math.max(15,Math.min(H-15, h.y-eta*grads[k].y*scale));
+  });
+  updateAssignments();
+
+  const eu=parseInt(document.getElementById('p-eu').value);
+  if((iter+1)%eu===0) updateEdges();
+
+  iter++;
+  const F=computeLoss(); lossHist.push(F);
+
+  document.getElementById('s-iter').innerText  = iter;
+  document.getElementById('s-loss').innerText  = F.toFixed(1);
+  document.getElementById('s-gnorm').innerText = gnorm.toFixed(2);
+  document.getElementById('s-eta').innerText   = eta.toFixed(4);
+  document.getElementById('s-edges').innerText = activeEdges.length;
+  const nextUpdate=eu-(iter%eu);
+  document.getElementById('diag-body').innerHTML=
+    `step: <span style="color:var(--accent)">${iter}</span><br>`+
+    `active |E|: <span style="color:var(--cool)">${activeEdges.length}</span><br>`+
+    `‖∇F‖: <span style="color:var(--warm)">${gnorm.toFixed(2)}</span><br>`+
+    `next edge upd: <span style="color:var(--purple)">${nextUpdate} step${nextUpdate===1?'':'s'}</span>`;
+
+  draw(grads); drawLoss();
+}
+
+function toggleRun() {
+  if(running){running=false;clearTimeout(animId);document.getElementById('runBtn').textContent='▶ Run';document.getElementById('runBtn').className='btn go';}
+  else{running=true;document.getElementById('runBtn').textContent='⏸ Pause';document.getElementById('runBtn').className='btn running';loop();}
+}
+function loop(){if(!running)return;gdStep();animId=setTimeout(()=>requestAnimationFrame(loop),60);}
+function hardStop(){running=false;clearTimeout(animId);document.getElementById('runBtn').textContent='▶ Run';document.getElementById('runBtn').className='btn go';}
+function refreshStats(){document.getElementById('s-iter').innerText=0;['s-loss','s-gnorm','s-edges'].forEach(id=>document.getElementById(id).innerText='—');document.getElementById('s-eta').innerText=pv('p-eta').toFixed(4);}
+
+// ── drawing ──
+function drawArrow(x1,y1,x2,y2,color,lw){
+  const ang=Math.atan2(y2-y1,x2-x1),hl=7;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hl*Math.cos(ang-.4),y2-hl*Math.sin(ang-.4));ctx.lineTo(x2-hl*Math.cos(ang+.4),y2-hl*Math.sin(ang+.4));ctx.closePath();ctx.fillStyle=color;ctx.fill();
+}
+
+function draw(grads) {
+  ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle='rgba(94,130,200,.05)';ctx.lineWidth=1;
+  for(let x=0;x<W;x+=44){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=44){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // candidate edges
+  allEdges.forEach(({i,j})=>{
+    if(activeEdges.find(e=>e.i===i&&e.j===j)) return;
+    const a=hubs[i],b=hubs[j];
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle='rgba(30,42,62,.9)';ctx.lineWidth=1;ctx.setLineDash([3,6]);ctx.stroke();ctx.setLineDash([]);
+  });
+
+  // active edges
+  activeEdges.forEach(({i,j})=>{
+    const a=hubs[i],b=hubs[j];
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle='rgba(96,165,250,.18)';ctx.lineWidth=6;ctx.stroke();
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle='rgba(96,165,250,.7)';ctx.lineWidth=1.5;ctx.stroke();
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    ctx.fillStyle='rgba(96,165,250,.5)';ctx.font='9px IBM Plex Mono';ctx.fillText(d2(a,b).toFixed(0),mx+4,my-4);
+  });
+
+  // assignment lines
+  dataY.forEach((y,k)=>{
+    const h=hubs[assignments[k]];
+    ctx.beginPath();ctx.moveTo(y.x,y.y);ctx.lineTo(h.x,h.y);ctx.strokeStyle='rgba(248,113,113,.1)';ctx.lineWidth=.8;ctx.stroke();
+  });
+
+  // data points
+  dataY.forEach(y=>{ctx.beginPath();ctx.arc(y.x,y.y,2.5,0,Math.PI*2);ctx.fillStyle='rgba(148,163,184,.4)';ctx.fill();});
+
+  // gradient arrows (descent direction = −∇F)
+  if(grads){
+    const clip=pv('p-gc');
+    let gnorm=0; grads.forEach(g=>{gnorm+=g.x*g.x+g.y*g.y;}); gnorm=Math.sqrt(gnorm);
+    const scale=(gnorm>clip?clip/gnorm:1)*35/Math.max(gnorm,1);
+    hubs.forEach((h,k)=>{
+      const g=grads[k];
+      drawArrow(h.x,h.y,h.x-g.x*scale,h.y-g.y*scale,'rgba(251,191,36,.75)',1.5);
+    });
+  }
+
+  // hubs
+  hubs.forEach((h,i)=>{
+    const w=assignments.filter(a=>a===i).length,r=5+Math.sqrt(w)*1.8;
+    const grd=ctx.createRadialGradient(h.x,h.y,0,h.x,h.y,r*3);
+    grd.addColorStop(0,'rgba(110,231,183,.28)');grd.addColorStop(1,'rgba(110,231,183,0)');
+    ctx.beginPath();ctx.arc(h.x,h.y,r*3,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    ctx.beginPath();ctx.arc(h.x,h.y,r,0,Math.PI*2);ctx.fillStyle='#07090d';ctx.fill();
+    ctx.strokeStyle='#6ee7b7';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#6ee7b7';ctx.font='9px IBM Plex Mono';ctx.textAlign='center';
+    ctx.fillText(`x${i}`,h.x,h.y+r+12);
+    ctx.fillStyle='rgba(110,231,183,.5)';ctx.fillText(`w=${w}`,h.x,h.y+r+22);
+    ctx.textAlign='left';
+  });
+}
+
+function drawLoss(){
+  const lx=lctx; lx.clearRect(0,0,LC.width,LC.height);
+  if(lossHist.length<2) return;
+  const W=LC.width,H=LC.height,minL=Math.min(...lossHist),maxL=Math.max(...lossHist),range=maxL-minL||1;
+  lx.beginPath();
+  lossHist.forEach((v,i)=>{const px=(i/(lossHist.length-1))*W,py=H-((v-minL)/range)*H;i===0?lx.moveTo(px,py):lx.lineTo(px,py);});
+  lx.strokeStyle='#6ee7b7';lx.lineWidth=1.5;lx.stroke();
+  lx.lineTo(W,H);lx.lineTo(0,H);lx.closePath();lx.fillStyle='rgba(110,231,183,.07)';lx.fill();
+  lx.fillStyle='rgba(251,191,36,.7)';lx.font='9px IBM Plex Mono';
+  lx.fillText(`min:${Math.min(...lossHist).toFixed(0)}`,4,H-4);
+  lx.fillText(`now:${lossHist.at(-1).toFixed(0)}`,80,H-4);
+}
+
+window.addEventListener('load',()=>{
+  C=document.getElementById('main'); ctx=C.getContext('2d');
+  LC=document.getElementById('lossCanvas'); lctx=LC.getContext('2d');
+  LC.width=246; LC.height=72;
+  window.addEventListener('resize',()=>{W=C.width=C.offsetWidth;H=C.height=C.offsetHeight;draw();});
+  init();
+});
+</script>
+</body>
+</html>
