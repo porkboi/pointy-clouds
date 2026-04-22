@@ -1,0 +1,4 @@
+interface:
+  display_name: "Math PDF Summarizer"
+  short_description: "Summarize math-heavy PDFs to Markdown"
+  default_prompt: "Use $math-pdf-summarizer to summarize a linked math-heavy PDF into Markdown with the core notation, definitions, results, and derivations."

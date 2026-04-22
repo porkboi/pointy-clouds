@@ -20,12 +20,13 @@
           <div class="mode-switch" role="tablist" aria-label="Solver modes">
             <button id="explorerTab" class="mode-tab is-active" type="button">ADMM Explorer</button>
             <button id="tuningTab" class="mode-tab" type="button">Hub Tuning</button>
+            <button id="canvasTab" class="mode-tab" type="button">Canvas Solve</button>
           </div>
-          <h1>ADMM hubs minimised against fit, path smoothness, shrinkage, and graph variation.</h1>
+          <h1>ADMM hubs minimised against fit, path smoothness, shrinkage, graph variation, and station cost.</h1>
           <p id="modeSummary" class="lede">
             The browser runs a 2D, deterministic ADMM-style solver over hub locations
             <code>x, z₁, z₂, z₃, u₁, u₂, u₃</code>. Each frame updates the point assignments,
-            shortest-path regulariser, quadratic shrinkage, and graph total variation.
+            shortest-path regulariser, quadratic shrinkage, graph total variation, and a station-count penalty.
           </p>
         </div>
         <div class="hero-math">
@@ -33,6 +34,7 @@
           <p><code>g₁(z₁) = weighted path smoothness on shortest hub paths</code></p>
           <p><code>g₂(z₂) = λ ||z₂||²</code></p>
           <p><code>g₃(z₃) = μ Σ(i,j)∈E ||z₃,i - z₃,j||</code></p>
+          <p><code>g₄(x) = c_station · |stations|</code></p>
         </div>
       </header>
 
@@ -78,22 +80,35 @@
               <button id="playPause">Pause</button>
               <button id="stepButton" class="ghost">Step</button>
               <button id="resetButton" class="ghost">Reset</button>
+              <button id="randomizeButton" class="ghost">Randomise</button>
+              <button id="voronoiToggle" class="ghost" type="button">Show Voronoi</button>
+            </div>
+            <div id="canvasSolverGroup" class="solver-toggle is-hidden">
+              <span class="solver-toggle-label">Canvas solver</span>
+              <div class="solver-toggle-buttons" role="group" aria-label="Canvas solver mode">
+                <button id="canvasExplorerMode" class="solver-mode is-active" type="button">ADMM Explorer</button>
+                <button id="canvasTuningMode" class="solver-mode" type="button">Hub Tuning</button>
+              </div>
             </div>
             <div id="hubCountGroup" class="slider-group">
-              <label for="hubCount">Hub count <span id="hubCountValue">9</span></label>
+              <label for="hubCount">Hub count <span id="hubCountValue" class="slider-value" role="button" tabindex="0" title="Click to enter a custom value">9</span></label>
               <input id="hubCount" type="range" min="4" max="20" value="9" />
             </div>
             <div class="slider-group">
-              <label for="rho">ρ penalty <span id="rhoValue">1.15</span></label>
-              <input id="rho" type="range" min="0.3" max="2.4" step="0.05" value="1.15" />
+              <label for="rho">ρ penalty <span id="rhoValue" class="slider-value" role="button" tabindex="0" title="Click to enter a custom value">1.15</span></label>
+              <input id="rho" type="range" min="0.3" max="5" step="0.05" value="1.15" />
             </div>
             <div class="slider-group">
-              <label for="lambda">λ shrinkage <span id="lambdaValue">0.12</span></label>
-              <input id="lambda" type="range" min="0.02" max="0.45" step="0.01" value="0.12" />
+              <label for="lambda">λ shrinkage <span id="lambdaValue" class="slider-value" role="button" tabindex="0" title="Click to enter a custom value">0.12</span></label>
+              <input id="lambda" type="range" min="0" max="0.45" step="0.01" value="0.12" />
             </div>
             <div class="slider-group">
-              <label for="mu">μ graph TV <span id="muValue">0.26</span></label>
+              <label for="mu">μ graph TV <span id="muValue" class="slider-value" role="button" tabindex="0" title="Click to enter a custom value">0.26</span></label>
               <input id="mu" type="range" min="0.04" max="0.8" step="0.02" value="0.26" />
+            </div>
+            <div class="slider-group">
+              <label for="stationCost">Station cost <span id="stationCostValue" class="slider-value" role="button" tabindex="0" title="Click to enter a custom value">0.00</span></label>
+              <input id="stationCost" type="range" min="0" max="100" step="0.25" value="0" />
             </div>
           </div>
 
@@ -139,6 +154,7 @@
               <div><dt><code>g₁(z₁)</code></dt><dd id="g1Value">0.000</dd></div>
               <div><dt><code>g₂(z₂)</code></dt><dd id="g2Value">0.000</dd></div>
               <div><dt><code>g₃(z₃)</code></dt><dd id="g3Value">0.000</dd></div>
+              <div><dt><code>g₄(x)</code></dt><dd id="g4Value">0.000</dd></div>
               <div><dt id="weightLabel">Largest hub weight</dt><dd id="weightValue">0</dd></div>
               <div><dt id="pathLabel">Highlighted path</dt><dd id="pathValue">0 → 0</dd></div>
             </dl>
