@@ -83,6 +83,13 @@
               <button id="randomizeButton" class="ghost">Randomise</button>
               <button id="voronoiToggle" class="ghost" type="button">Show Voronoi</button>
             </div>
+            <div class="solver-toggle">
+              <span class="solver-toggle-label">Optimization method</span>
+              <div class="solver-toggle-buttons" role="group" aria-label="Optimization method">
+                <button id="optimizerAdmm" class="solver-mode is-active" type="button">ADMM</button>
+                <button id="optimizerSgd" class="solver-mode" type="button">SGD</button>
+              </div>
+            </div>
             <div id="canvasSolverGroup" class="solver-toggle is-hidden">
               <span class="solver-toggle-label">Canvas solver</span>
               <div class="solver-toggle-buttons" role="group" aria-label="Canvas solver mode">
@@ -90,6 +97,10 @@
                 <button id="canvasTuningMode" class="solver-mode" type="button">Hub Tuning</button>
               </div>
             </div>
+            <label id="skipAdmmTuningAnimationGroup" class="toggle-check is-hidden" for="skipAdmmTuningAnimation">
+              <input id="skipAdmmTuningAnimation" type="checkbox" />
+              <span>Skip ADMM tuning animations</span>
+            </label>
             <div id="hubCountGroup" class="slider-group">
               <label for="hubCount">Hub count <span id="hubCountValue" class="slider-value" role="button" tabindex="0" title="Click to enter a custom value">9</span></label>
               <input id="hubCount" type="range" min="4" max="20" value="9" />
@@ -104,7 +115,7 @@
             </div>
             <div class="slider-group">
               <label for="mu">μ graph TV <span id="muValue" class="slider-value" role="button" tabindex="0" title="Click to enter a custom value">0.26</span></label>
-              <input id="mu" type="range" min="0.04" max="0.8" step="0.02" value="0.26" />
+              <input id="mu" type="range" min="0.00" max="100" step="0.02" value="0.26" />
             </div>
             <div class="slider-group">
               <label for="stationCost">Station cost <span id="stationCostValue" class="slider-value" role="button" tabindex="0" title="Click to enter a custom value">0.00</span></label>
@@ -122,11 +133,11 @@
               <strong id="objectiveValue">0.000</strong>
             </article>
             <article class="metric-card">
-              <span class="metric-label">Primal residual</span>
+              <span id="primalMetricLabel" class="metric-label">Primal residual</span>
               <strong id="primalValue">0.000</strong>
             </article>
             <article class="metric-card">
-              <span class="metric-label">Dual residual</span>
+              <span id="dualMetricLabel" class="metric-label">Dual residual</span>
               <strong id="dualValue">0.000</strong>
             </article>
           </div>

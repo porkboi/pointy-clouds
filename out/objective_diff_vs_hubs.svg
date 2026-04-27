@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="720" viewBox="0 0 1080 720" role="img" aria-labelledby="title desc">
+  <title id="title">Objective difference versus number of hubs</title>
+  <desc id="desc">Line plot of SGD objective minus ADMM objective for different hub counts.</desc>
+  <rect width="1080" height="720" fill="#fffaf0" />
+  <rect x="110" y="80" width="910" height="550" rx="18" fill="#ffffff" stroke="#fed7aa" stroke-width="1.5" />
+  
+  <line x1="110.00" y1="80" x2="110.00" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="110.00" y="660.00" text-anchor="middle" font-size="15" fill="#334155">5</text>
+  <line x1="192.73" y1="80" x2="192.73" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="192.73" y="660.00" text-anchor="middle" font-size="15" fill="#334155">6</text>
+  <line x1="275.45" y1="80" x2="275.45" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="275.45" y="660.00" text-anchor="middle" font-size="15" fill="#334155">7</text>
+  <line x1="358.18" y1="80" x2="358.18" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="358.18" y="660.00" text-anchor="middle" font-size="15" fill="#334155">8</text>
+  <line x1="440.91" y1="80" x2="440.91" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="440.91" y="660.00" text-anchor="middle" font-size="15" fill="#334155">9</text>
+  <line x1="523.64" y1="80" x2="523.64" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="523.64" y="660.00" text-anchor="middle" font-size="15" fill="#334155">10</text>
+  <line x1="606.36" y1="80" x2="606.36" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="606.36" y="660.00" text-anchor="middle" font-size="15" fill="#334155">11</text>
+  <line x1="689.09" y1="80" x2="689.09" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="689.09" y="660.00" text-anchor="middle" font-size="15" fill="#334155">12</text>
+  <line x1="771.82" y1="80" x2="771.82" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="771.82" y="660.00" text-anchor="middle" font-size="15" fill="#334155">13</text>
+  <line x1="854.55" y1="80" x2="854.55" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="854.55" y="660.00" text-anchor="middle" font-size="15" fill="#334155">14</text>
+  <line x1="937.27" y1="80" x2="937.27" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="937.27" y="660.00" text-anchor="middle" font-size="15" fill="#334155">15</text>
+  <line x1="1020.00" y1="80" x2="1020.00" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="1020.00" y="660.00" text-anchor="middle" font-size="15" fill="#334155">16</text>
+  
+  <line x1="110" y1="630.00" x2="1020.00" y2="630.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="94.00" y="635.00" text-anchor="end" font-size="15" fill="#334155">-9.219331</text>
+  <line x1="110" y1="538.33" x2="1020.00" y2="538.33" stroke="#e2e8f0" stroke-width="1" />
+  <text x="94.00" y="543.33" text-anchor="end" font-size="15" fill="#334155">-6.783493</text>
+  <line x1="110" y1="446.67" x2="1020.00" y2="446.67" stroke="#e2e8f0" stroke-width="1" />
+  <text x="94.00" y="451.67" text-anchor="end" font-size="15" fill="#334155">-4.347655</text>
+  <line x1="110" y1="355.00" x2="1020.00" y2="355.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="94.00" y="360.00" text-anchor="end" font-size="15" fill="#334155">-1.911818</text>
+  <line x1="110" y1="263.33" x2="1020.00" y2="263.33" stroke="#e2e8f0" stroke-width="1" />
+  <text x="94.00" y="268.33" text-anchor="end" font-size="15" fill="#334155">0.524020</text>
+  <line x1="110" y1="171.67" x2="1020.00" y2="171.67" stroke="#e2e8f0" stroke-width="1" />
+  <text x="94.00" y="176.67" text-anchor="end" font-size="15" fill="#334155">2.959858</text>
+  <line x1="110" y1="80.00" x2="1020.00" y2="80.00" stroke="#e2e8f0" stroke-width="1" />
+  <text x="94.00" y="85.00" text-anchor="end" font-size="15" fill="#334155">5.395695</text>
+  <line x1="110" y1="283.05" x2="1020.00" y2="283.05" stroke="#9a3412" stroke-width="1.5" stroke-dasharray="8 6" />
+  <path d="M 110.00 288.02 L 192.73 311.40 L 275.45 331.55 L 358.18 320.47 L 440.91 125.83 L 523.64 127.10 L 606.36 301.49 L 689.09 303.50 L 771.82 385.40 L 854.55 515.82 L 937.27 565.05 L 1020.00 584.17" fill="none" stroke="#ea580c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+  
+  <circle cx="110.00" cy="288.02" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="110.00" y="276.02" text-anchor="middle" font-size="14" fill="#7c2d12">-0.132060</text>
+  <circle cx="192.73" cy="311.40" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="192.73" y="299.40" text-anchor="middle" font-size="14" fill="#7c2d12">-0.753329</text>
+  <circle cx="275.45" cy="331.55" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="275.45" y="319.55" text-anchor="middle" font-size="14" fill="#7c2d12">-1.288678</text>
+  <circle cx="358.18" cy="320.47" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="358.18" y="308.47" text-anchor="middle" font-size="14" fill="#7c2d12">-0.994359</text>
+  <circle cx="440.91" cy="125.83" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="440.91" y="113.83" text-anchor="middle" font-size="14" fill="#7c2d12">4.177777</text>
+  <circle cx="523.64" cy="127.10" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="523.64" y="115.10" text-anchor="middle" font-size="14" fill="#7c2d12">4.144050</text>
+  <circle cx="606.36" cy="301.49" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="606.36" y="289.49" text-anchor="middle" font-size="14" fill="#7c2d12">-0.489949</text>
+  <circle cx="689.09" cy="303.50" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="689.09" y="291.50" text-anchor="middle" font-size="14" fill="#7c2d12">-0.543443</text>
+  <circle cx="771.82" cy="385.40" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="771.82" y="373.40" text-anchor="middle" font-size="14" fill="#7c2d12">-2.719686</text>
+  <circle cx="854.55" cy="515.82" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="854.55" y="503.82" text-anchor="middle" font-size="14" fill="#7c2d12">-6.185384</text>
+  <circle cx="937.27" cy="565.05" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="937.27" y="553.05" text-anchor="middle" font-size="14" fill="#7c2d12">-7.493444</text>
+  <circle cx="1020.00" cy="584.17" r="5.5" fill="#d9480f" stroke="#fff7ed" stroke-width="2" />
+  <text x="1020.00" y="572.17" text-anchor="middle" font-size="14" fill="#7c2d12">-8.001412</text>
+  <text x="540.00" y="42" text-anchor="middle" font-size="28" font-weight="700" fill="#7c2d12">SGD Objective - ADMM Objective vs Number of Hubs</text>
+  <text x="540.00" y="70" text-anchor="middle" font-size="16" fill="#9a3412">Positive values mean ADMM reached a lower objective.</text>
+  <text x="540.00" y="696.00" text-anchor="middle" font-size="18" fill="#431407">Number of hubs</text>
+  <text x="28" y="360.00" transform="rotate(-90 28 360.00)" text-anchor="middle" font-size="18" fill="#431407">Objective difference</text>
+</svg>
